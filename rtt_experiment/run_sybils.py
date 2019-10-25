@@ -6,7 +6,7 @@ from .community import RTTExperimentCommunity
 from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
-sybil_count = int(sys.argv[1], 10)
+sybil_count = int(sys.argv[2], 10)
 
 for i in xrange(1, sybil_count+1):
     configuration = get_default_configuration()
