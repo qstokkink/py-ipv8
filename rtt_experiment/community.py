@@ -49,7 +49,7 @@ class RTTExperimentCommunity(Community):
 
         if not self.is_sybil:
             with open(self.my_peer.mid.encode('hex') + '.map', 'w') as f:
-                f.write('mid, is_sybil\n')
+                f.write('mid, is_sybil, estimated_sybil\n')
             with open(self.my_peer.mid.encode('hex') + '.sbl', 'w') as f:
                 f.write('mid1, mid2, start_time, ping_time\n')
             self.iterations = 0
@@ -105,6 +105,30 @@ class RTTExperimentCommunity(Community):
             if key == peer:
                 key.pings.append(self.RTTs[peer][payload.nonce][1] - self.RTTs[peer][payload.nonce][0])
 
+    def estimate_sybils(self):
+        sybil_map = {}
+        previous_ping_time = -1
+        for peer1, peer2, nonces in self.measurements:
+            completed_measurements = []
+            i = 0
+            for nonce in nonces:
+                start_time, end_time = self.RTTs[peer1 if i < self.ping_window_size else peer2][nonce]
+                if end_time != -1:
+                    completed_measurements.append((start_time, end_time - start_time))
+                i += 1
+            completed_measurements.sort()
+
+            ping_time = completed_measurements[0][1]
+            estimated_sybils = 0
+            if previous_ping_time != -1:
+                if ping_time > previous_ping_time:
+                    estimated_sybils = 1
+            previous_ping_time = completed_measurements[-1][1]
+
+            sybil_map[peer1] = sybil_map.get(peer1, 0) + estimated_sybils
+            sybil_map[peer2] = sybil_map.get(peer2, 0) + estimated_sybils
+        return sybil_map
+
     def update(self):
         if (len(self.sybil_map) >= self.experiment_size
                 and all(p.get_median_ping() is not None for p in self.sybil_map)
@@ -125,9 +149,11 @@ class RTTExperimentCommunity(Community):
                 self.measurements.append((peer1, peer2, nonces))
             self.iterations += 1
         elif self.iterations == self.max_iterations:
+            estimated_sybil_map = self.estimate_sybils()
             with open(self.my_peer.mid.encode('hex') + '.map', 'a') as f:
                 for p in self.sybil_map:
-                    f.write("%s, %d\n" % (p.mid.encode('hex'), self.sybil_map[p]))
+                    f.write("%s, %d, %d\n" % (p.mid.encode('hex'), self.sybil_map[p],
+                                              estimated_sybil_map.get(p, 0)))
             with open(self.my_peer.mid.encode('hex') + '.sbl', 'a') as f:
                 for peer1, peer2, nonces in self.measurements:
                     i = 0
