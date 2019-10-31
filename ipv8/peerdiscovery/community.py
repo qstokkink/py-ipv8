@@ -45,7 +45,7 @@ class PingRequestCache(NumberCache):
 
     @property
     def timeout_delay(self):
-        return 5.0
+        return 20.0
 
     def on_timeout(self):
         pass
@@ -179,11 +179,11 @@ class DiscoveryCommunity(Community):
 
     def send_ping(self, peer):
         global_time = self.claim_global_time()
-        payload = PingPayload(global_time).to_pack_list()
+        payload = PingPayload(global_time % 65536).to_pack_list()
         dist = GlobalTimeDistributionPayload(global_time).to_pack_list()
 
         packet = self._ez_pack(self._prefix, 3, [dist, payload], False)
-        self.request_cache.add(PingRequestCache(self.request_cache, global_time, peer, time()))
+        self.request_cache.add(PingRequestCache(self.request_cache, global_time % 65536, peer, time()))
         self.endpoint.send(peer.address, packet)
 
     def create_pong(self, identifier):

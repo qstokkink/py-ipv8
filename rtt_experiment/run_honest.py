@@ -2,7 +2,7 @@ import sys
 
 from twisted.internet import reactor
 
-from .community import RTTExperimentCommunity
+from .community2 import RTTExperimentCommunity
 from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
@@ -19,7 +19,8 @@ configuration['overlays'] = [{
                     'strategy': "RandomWalk",
                     'peers': -1,
                     'init': {
-                        'timeout': 3.0
+                        'timeout': 5.0,
+                        'window_size': 64
                     }
                 }],
     'initialize': {'experiment_size': int(sys.argv[1], 10)},
