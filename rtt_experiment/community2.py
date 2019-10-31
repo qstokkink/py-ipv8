@@ -138,10 +138,11 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                     raise StopIteration()
             except StopIteration:
                 self.completed = True
+                time.sleep(5.0)
                 estimated_sybil_map = self.estimate_sybils()
                 with open(self.my_peer.mid.encode('hex') + '.map', 'a') as f:
                     for p in self.victim_set:
-                        f.write("%s, %d\n" % (p.address,
+                        f.write("%s, %d\n" % (p.address[0] + ':' + str(p.address[1]),
                                               estimated_sybil_map.get(p, 0)))
                 with open(self.my_peer.mid.encode('hex') + '.sbl', 'a') as f:
                     for peer1, peer2, nonces in self.measurements:
@@ -151,8 +152,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                                 start_time, end_time = self.RTTs[peer1][nonce]
                             else:
                                 start_time, end_time = self.RTTs[peer2][nonce]
-                            f.write('%s, %s, %f, %f\n' % (peer1.address,
-                                                          peer2.address,
+                            f.write('%s, %s, %f, %f\n' % (peer1.address[0] + ':' + str(peer1.address[1]),
+                                                          peer2.address[0] + ':' + str(peer2.address[1]),
                                                           start_time,
                                                           (end_time - start_time) if end_time != -1 else -1))
                             i += 1
