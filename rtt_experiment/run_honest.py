@@ -26,7 +26,7 @@ configuration['overlays'] = [{
     'initialize': {'experiment_size': int(sys.argv[1], 10)},
     'on_start': []
 }]
-configuration['logger'] = { 'level': "DEBUG" }
+configuration['logger'] = { 'level': "INFO" }
 
 IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentCommunity})
 

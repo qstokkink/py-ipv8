@@ -1,14 +1,20 @@
 import collections
 import itertools
 import math
+import os
+import time
 
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 
+import ipv8.community
+ipv8.community.BOOTSTRAP_TIMEOUT = 3.0
+
 from ipv8.lazy_community import lazy_wrapper_unsigned
 from ipv8.peerdiscovery.community import DiscoveryCommunity
 from ipv8.messaging.payload_headers import GlobalTimeDistributionPayload
-from ipv8.peerdiscovery.payload import PingPayload
+from ipv8.peerdiscovery.community import PingRequestCache
+from ipv8.peerdiscovery.payload import PingPayload, PongPayload
 
 
 class RTTExperimentCommunity(DiscoveryCommunity):
@@ -32,6 +38,23 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 f.write('address1, address2, start_time, ping_time\n')
             self.register_task("update", LoopingCall(self.update)).start(0.5, False)
 
+    def send_ping(self, peer):
+        global_time = self.claim_global_time()
+        nonce = global_time % 65536
+
+        ping_cache = self.RTTs.get(peer, {})
+        ping_cache[nonce] = [time.time(), -1]
+        self.RTTs[peer] = ping_cache
+
+        payload = PingPayload(nonce).to_pack_list()
+        dist = GlobalTimeDistributionPayload(global_time).to_pack_list()
+
+        packet = self._ez_pack(self._prefix, 3, [dist, payload], False)
+        self.request_cache.add(PingRequestCache(self.request_cache, nonce, peer, time.time()))
+        self.endpoint.send(peer.address, packet)
+
+        return nonce
+
     @lazy_wrapper_unsigned(GlobalTimeDistributionPayload, PingPayload)
     def on_ping(self, source_address, dist, payload):
         packet = self.create_pong(payload.identifier)
@@ -42,6 +65,15 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         else:
             self.endpoint.send(source_address, packet)
 
+    @lazy_wrapper_unsigned(GlobalTimeDistributionPayload, PongPayload)
+    def on_pong(self, source_address, dist, payload):
+        try:
+            cache = self.request_cache.pop(u"discoverypingcache", payload.identifier)
+            cache.finish()
+            self.RTTs[cache.peer][payload.identifier][1] = time.time()
+        except KeyError:
+            self.logger.debug("PingCache was answered late.")
+
     def estimate_sybils(self):
         sybil_map_clsf = {}
         hist_len = 3
@@ -50,7 +82,10 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             ping_times = []
             i = 0
             for nonce in nonces:
-                start_time, end_time = self.RTTs[peer1 if i < self.ping_window_size else peer2][nonce]
+                if self.RTTs.get(peer1, {}).get(nonce, None) is not None:
+                    start_time, end_time = self.RTTs[peer1][nonce]
+                else:
+                    start_time, end_time = self.RTTs[peer2][nonce]
                 if end_time != -1:
                     ping_times.append((start_time, end_time - start_time))
                 i += 1
@@ -112,7 +147,10 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                     for peer1, peer2, nonces in self.measurements:
                         i = 0
                         for nonce in nonces:
-                            start_time, end_time = self.RTTs[peer1 if i < self.ping_window_size else peer2][nonce]
+                            if self.RTTs.get(peer1, {}).get(nonce, None) is not None:
+                                start_time, end_time = self.RTTs[peer1][nonce]
+                            else:
+                                start_time, end_time = self.RTTs[peer2][nonce]
                             f.write('%s, %s, %f, %f\n' % (peer1.address,
                                                           peer2.address,
                                                           start_time,
@@ -123,8 +161,9 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             if len(self.victim_set) < self.experiment_size:
                 print "Got:", len(self.victim_set), "Waiting for:", self.experiment_size
                 self.victim_set = set(self.get_peers())
+                self.bootstrap()
             elif any(p.get_median_ping() is None for p in self.victim_set):
-                print "Missing pings:", [(p, p.get_median_ping()) for p in self.victim_set]
+                print "Missing pings!"
                 for p in self.victim_set:
                     if not p.get_median_ping():
                         self.send_ping(p)
