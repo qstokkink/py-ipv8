@@ -22,7 +22,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
     def __init__(self, my_peer, endpoint, network, experiment_size, is_sybil=0, max_peers=-1, anonymize=False):
         super(RTTExperimentCommunity, self).__init__(my_peer, endpoint, network, max_peers, anonymize)
         self.is_sybil = is_sybil
-        self.pong_delay = is_sybil * 0.05  # Delta = 0.05
+        self.pong_delay = max(0, is_sybil - 1) * 0.05  # Delta = 0.05
         self.experiment_size = experiment_size
         self.RTTs = {}
         self.measurements = []  # [(Peer1, Peer2, [nonces]), ]

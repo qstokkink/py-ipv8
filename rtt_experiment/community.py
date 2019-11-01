@@ -37,7 +37,7 @@ class RTTExperimentCommunity(Community):
         super(RTTExperimentCommunity, self).__init__(my_peer, endpoint, network, max_peers, anonymize)
         self.sybil_map = {}
         self.is_sybil = is_sybil
-        self.pong_delay = is_sybil * 0.05  # Delta = 0.05
+        self.pong_delay = max(0, is_sybil - 1) * 0.05  # Delta = 0.05
         self.experiment_size = experiment_size
         self.max_iterations = 20
 
