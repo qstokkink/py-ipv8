@@ -1,7 +1,6 @@
 import collections
 import itertools
 import math
-import os
 import time
 
 from twisted.internet import reactor
@@ -19,8 +18,10 @@ from ipv8.peerdiscovery.payload import PingPayload, PongPayload
 
 class RTTExperimentCommunity(DiscoveryCommunity):
 
-    def __init__(self, my_peer, endpoint, network, experiment_size, is_sybil=0, max_peers=-1, anonymize=False):
+    def __init__(self, my_peer, endpoint, network, experiment_size,
+                 ipv8s=[], is_sybil=0, max_peers=-1, anonymize=False):
         super(RTTExperimentCommunity, self).__init__(my_peer, endpoint, network, max_peers, anonymize)
+        self.ipv8s = ipv8s
         self.is_sybil = is_sybil
         self.pong_delay = max(0, is_sybil - 1) * 0.05  # Delta = 0.05
         self.experiment_size = experiment_size
@@ -30,27 +31,37 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         self.victim_set = {}
         self.outstanding_checks = None
         self.completed = False
+        self.measuring = False
+        self.reverse_nonce_map = {}
 
         if not self.is_sybil:
             with open(self.my_peer.mid.encode('hex') + '.map', 'w') as f:
-                f.write('address, classification\n')
+                f.write('address, honest, sybil\n')
             with open(self.my_peer.mid.encode('hex') + '.sbl', 'w') as f:
                 f.write('address1, address2, start_time, ping_time\n')
             self.register_task("update", LoopingCall(self.update)).start(0.5, False)
 
-    def send_ping(self, peer):
+    def walk_to(self, address):
+        if not self.measuring:
+            super(RTTExperimentCommunity, self).walk_to(address)
+
+    def send_ping(self, peer, no_cache=False):
         global_time = self.claim_global_time()
         nonce = global_time % 65536
-
-        ping_cache = self.RTTs.get(peer, {})
-        ping_cache[nonce] = [time.time(), -1]
-        self.RTTs[peer] = ping_cache
 
         payload = PingPayload(nonce).to_pack_list()
         dist = GlobalTimeDistributionPayload(global_time).to_pack_list()
 
         packet = self._ez_pack(self._prefix, 3, [dist, payload], False)
-        self.request_cache.add(PingRequestCache(self.request_cache, nonce, peer, time.time()))
+        if no_cache:
+            self.reverse_nonce_map[nonce] = peer
+        else:
+            self.request_cache.add(PingRequestCache(self.request_cache, nonce, peer, time.time()))
+
+        ping_cache = self.RTTs.get(peer, {})
+        ping_cache[nonce] = [time.time(), -1]
+        self.RTTs[peer] = ping_cache
+
         self.endpoint.send(peer.address, packet)
 
         return nonce
@@ -67,15 +78,20 @@ class RTTExperimentCommunity(DiscoveryCommunity):
 
     @lazy_wrapper_unsigned(GlobalTimeDistributionPayload, PongPayload)
     def on_pong(self, source_address, dist, payload):
-        try:
-            cache = self.request_cache.pop(u"discoverypingcache", payload.identifier)
+        rcv_time = time.time()
+        peer = self.reverse_nonce_map.pop(payload.identifier, None)
+        if not peer:
+            try:
+                cache = self.request_cache.pop(u"discoverypingcache", payload.identifier)
+            except KeyError:
+                return
             cache.finish()
-            self.RTTs[cache.peer][payload.identifier][1] = time.time()
-        except KeyError:
-            self.logger.debug("PingCache was answered late.")
+            peer = cache.peer
+        self.RTTs[peer][payload.identifier][1] = rcv_time
 
     def estimate_sybils(self):
         sybil_map_clsf = {}
+        honest_map_clsf = {}
         hist_len = 3
         for peer1, peer2, nonces in self.measurements:
             # 1. Reconstruct measurements
@@ -109,15 +125,25 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             coef = float(ping_times[dip-1][1] - ping_times[0][1])/float(ping_times[dip-1][0] - ping_times[0][0])
             mse = 1/float(dip) * sum(math.pow(coef * (ping_times[x][0] - ping_times[0][0]) - ping_times[x][1], 2)
                                      for x in xrange(dip))
-            is_sybil_clsf2 = 1 if mse > 0.01 else -1
-            sybil_map_clsf[peer1] = sybil_map_clsf.get(peer1, 0) + is_sybil_clsf2
-            sybil_map_clsf[peer2] = sybil_map_clsf.get(peer2, 0) + is_sybil_clsf2
-        return sybil_map_clsf
+            is_sybil_clsf2 = mse < 0.01
+            if is_sybil_clsf2:
+                sybil_map_clsf[peer1] = sybil_map_clsf.get(peer1, 0) + 1
+                sybil_map_clsf[peer2] = sybil_map_clsf.get(peer2, 0) + 1
+            else:
+                honest_map_clsf[peer1] = honest_map_clsf.get(peer1, 0) + 1
+                honest_map_clsf[peer2] = honest_map_clsf.get(peer2, 0) + 1
+        return honest_map_clsf, sybil_map_clsf
 
     def update(self):
         if (len(self.victim_set) >= self.experiment_size
                 and all(p.get_median_ping() is not None for p in self.victim_set)
                 and not self.completed):
+            if not self.measuring:
+                print "Starting measurement, nuking IPv8 walkers"
+                for ipv8 in self.ipv8s:
+                    ipv8.state_machine_lc.stop()
+                self.measuring = True
+                return
             try:
                 if len(self.victim_set) >= 2:
                     if self.outstanding_checks is None:
@@ -129,21 +155,22 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                     nonces = []
                     # Send furthest first
                     for _ in xrange(self.ping_window_size):
-                        nonces.append(self.send_ping(peer1))
+                        nonces.append(self.send_ping(peer1, True))
                     # Send closest second
                     for _ in xrange(self.ping_window_size):
-                        nonces.append(self.send_ping(peer2))
+                        nonces.append(self.send_ping(peer2, True))
                     self.measurements.append((peer1, peer2, nonces))
                 else:
                     raise StopIteration()
             except StopIteration:
                 self.completed = True
+                print "Waiting for final measurements"
                 time.sleep(5.0)
-                estimated_sybil_map = self.estimate_sybils()
+                honest_map_clsf, sybil_map_clsf = self.estimate_sybils()
                 with open(self.my_peer.mid.encode('hex') + '.map', 'a') as f:
                     for p in self.victim_set:
-                        f.write("%s, %d\n" % (p.address[0] + ':' + str(p.address[1]),
-                                              estimated_sybil_map.get(p, 0)))
+                        f.write("%s, %d, %d\n" % (p.address[0] + ':' + str(p.address[1]),
+                                                  honest_map_clsf.get(p, 0), sybil_map_clsf.get(p, 0)))
                 with open(self.my_peer.mid.encode('hex') + '.sbl', 'a') as f:
                     for peer1, peer2, nonces in self.measurements:
                         i = 0
@@ -158,10 +185,12 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                                                           (end_time - start_time) if end_time != -1 else -1))
                             i += 1
                 print "Finished experiment!"
+                reactor.callFromThread(reactor.stop)
         else:
             if len(self.victim_set) < self.experiment_size:
                 print "Got:", len(self.victim_set), "Waiting for:", self.experiment_size
-                self.victim_set = set(self.get_peers())
+                self.unique_addresses = {p.address[0]: p for p in self.get_peers()}
+                self.victim_set = set(self.unique_addresses.values()[:self.experiment_size])
                 self.bootstrap()
             elif any(p.get_median_ping() is None for p in self.victim_set):
                 print "Missing pings!"

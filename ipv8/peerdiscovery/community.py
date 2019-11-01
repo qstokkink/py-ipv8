@@ -45,7 +45,7 @@ class PingRequestCache(NumberCache):
 
     @property
     def timeout_delay(self):
-        return 20.0
+        return 2.0
 
     def on_timeout(self):
         pass
