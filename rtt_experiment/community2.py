@@ -153,12 +153,14 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                     if not first_peer:
                         peer1, peer2 = peer2, peer1
                     nonces = []
-                    # Send furthest first
-                    for _ in xrange(self.ping_window_size):
-                        nonces.append(self.send_ping(peer1, True))
-                    # Send closest second
-                    for _ in xrange(self.ping_window_size):
-                        nonces.append(self.send_ping(peer2, True))
+                    ping_window_repeats = max(1, int(math.ceil(peer1.get_median_ping()/0.2)))
+                    for _ in xrange(ping_window_repeats):
+                        # Send furthest first
+                        for _ in xrange(self.ping_window_size):
+                            nonces.append(self.send_ping(peer1, True))
+                        # Send closest second
+                        for _ in xrange(self.ping_window_size):
+                            nonces.append(self.send_ping(peer2, True))
                     self.measurements.append((peer1, peer2, nonces))
                 else:
                     raise StopIteration()
