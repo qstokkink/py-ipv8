@@ -106,22 +106,10 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                     ping_times.append((start_time, end_time - start_time))
                 i += 1
             ping_times.sort()
-            # 2. Determine dip
-            ppoints = collections.deque(maxlen=hist_len)
-            i = 0
-            dip = -1
-            for start_time, ping_time in ping_times:
-                if len(ppoints) == hist_len:
-                    if ppoints[-1] - ppoints[0] < ppoints[-1] - ping_time:
-                        dip = i
-                        break
-                    ppoints.popleft()
-                ppoints.append(ping_time)
-                i += 1
-            if dip == -1:
-                print "Failed to find dip!"
-                continue
             # 4. Classifier
+            dip = len(ping_times)
+            if dip == 0:
+                continue
             coef = float(ping_times[dip-1][1] - ping_times[0][1])/float(ping_times[dip-1][0] - ping_times[0][0])
             mse = 1/float(dip) * sum(math.pow(coef * (ping_times[x][0] - ping_times[0][0]) - ping_times[x][1], 2)
                                      for x in xrange(dip))
@@ -160,7 +148,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                             nonces.append(self.send_ping(peer1, True))
                         # Send closest second
                         for _ in xrange(self.ping_window_size):
-                            nonces.append(self.send_ping(peer2, True))
+                            self.send_ping(peer2, True)  # We don't store this in the nonce list.
                     self.measurements.append((peer1, peer2, nonces))
                 else:
                     raise StopIteration()
