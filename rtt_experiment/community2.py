@@ -1,13 +1,13 @@
-import collections
 import itertools
 import math
+import random
 import time
 
 from twisted.internet import reactor
 from twisted.internet.task import LoopingCall
 
 import ipv8.community
-ipv8.community.BOOTSTRAP_TIMEOUT = 3.0
+ipv8.community.BOOTSTRAP_TIMEOUT = 10.0
 
 from ipv8.lazy_community import lazy_wrapper_unsigned
 from ipv8.peerdiscovery.community import DiscoveryCommunity
@@ -33,17 +33,33 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         self.completed = False
         self.measuring = False
         self.reverse_nonce_map = {}
+        self.expected_measurements = math.factorial(experiment_size) / math.factorial(2) / math.factorial(experiment_size - 2)
 
         if not self.is_sybil:
             with open(self.my_peer.mid.encode('hex') + '.map', 'w') as f:
-                f.write('address, honest, sybil\n')
+                f.write('address, ping, honest, sybil\n')
             with open(self.my_peer.mid.encode('hex') + '.sbl', 'w') as f:
                 f.write('address1, address2, start_time, ping_time\n')
-            self.register_task("update", LoopingCall(self.update)).start(0.5, False)
+            self.register_task("update", LoopingCall(self.update)).start(5.0, False)
 
     def walk_to(self, address):
         if not self.measuring:
             super(RTTExperimentCommunity, self).walk_to(address)
+
+    def on_similarity_request(self, source_address, packet):
+        pass
+
+    def on_similarity_response(self, source_address, packet):
+        pass
+
+    def introduction_response_callback(self, peer, dist, payload):
+        if not self.measuring:
+            self.walk_to(payload.wan_introduction_address)
+            self.send_ping(peer)
+
+    def introduction_request_callback(self, peer, dist, payload):
+        if not self.measuring:
+            self.walk_to(payload.wan_introduction_address)
 
     def send_ping(self, peer, no_cache=False):
         global_time = self.claim_global_time()
@@ -92,7 +108,6 @@ class RTTExperimentCommunity(DiscoveryCommunity):
     def estimate_sybils(self):
         sybil_map_clsf = {}
         honest_map_clsf = {}
-        hist_len = 3
         for peer1, peer2, nonces in self.measurements:
             # 1. Reconstruct measurements
             ping_times = []
@@ -108,7 +123,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             ping_times.sort()
             # 4. Classifier
             dip = len(ping_times)
-            if dip == 0:
+            if dip == 0 or float(ping_times[dip-1][0] - ping_times[0][0]) == 0:
                 continue
             coef = float(ping_times[dip-1][1] - ping_times[0][1])/float(ping_times[dip-1][0] - ping_times[0][0])
             mse = 1/float(dip) * sum(math.pow(coef * (ping_times[x][0] - ping_times[0][0]) - ping_times[x][1], 2)
@@ -128,6 +143,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 and not self.completed):
             if not self.measuring:
                 print "Starting measurement, nuking IPv8 walkers"
+                self.cancel_pending_task("update")
+                self.register_task("update", LoopingCall(self.update)).start(0.5, False)
                 for ipv8 in self.ipv8s:
                     ipv8.state_machine_lc.stop()
                 self.measuring = True
@@ -136,6 +153,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 if len(self.victim_set) >= 2:
                     if self.outstanding_checks is None:
                         self.outstanding_checks = itertools.combinations(self.victim_set, 2)
+                    if len(self.measurements) % 50 == 0:
+                        print len(self.measurements), '/', self.expected_measurements
                     peer1, peer2 = self.outstanding_checks.next()
                     first_peer = peer1.get_median_ping() > peer2.get_median_ping()
                     if not first_peer:
@@ -159,8 +178,9 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 honest_map_clsf, sybil_map_clsf = self.estimate_sybils()
                 with open(self.my_peer.mid.encode('hex') + '.map', 'a') as f:
                     for p in self.victim_set:
-                        f.write("%s, %d, %d\n" % (p.address[0] + ':' + str(p.address[1]),
-                                                  honest_map_clsf.get(p, 0), sybil_map_clsf.get(p, 0)))
+                        f.write("%s, %f, %d, %d\n" % (p.address[0] + ':' + str(p.address[1]),
+                                                      p.get_median_ping(),
+                                                      honest_map_clsf.get(p, 0), sybil_map_clsf.get(p, 0)))
                 with open(self.my_peer.mid.encode('hex') + '.sbl', 'a') as f:
                     for peer1, peer2, nonces in self.measurements:
                         i = 0
@@ -178,12 +198,18 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 reactor.callFromThread(reactor.stop)
         else:
             if len(self.victim_set) < self.experiment_size:
-                print "Got:", len(self.victim_set), "Waiting for:", self.experiment_size
-                self.unique_addresses = {p.address[0]: p for p in self.get_peers()}
-                self.victim_set = set(self.unique_addresses.values()[:self.experiment_size])
+                print "Got:", len(self.get_peers()), "Waiting for:", self.experiment_size
+                if len(self.get_peers()) >= self.experiment_size:
+                    self.unique_addresses = {p.address[0]: p for p in self.get_peers()}
+                    self.victim_set = set(random.sample(self.unique_addresses.values(),
+                                                        min(len(self.unique_addresses), self.experiment_size)))
+                    print "Unique:", len(self.unique_addresses)
                 self.bootstrap()
+                for address in self.get_walkable_addresses():
+                    self.walk_to(address)
             elif any(p.get_median_ping() is None for p in self.victim_set):
                 print "Missing pings!"
                 for p in self.victim_set:
                     if not p.get_median_ping():
                         self.send_ping(p)
+                self.victim_set = set(p for p in self.victim_set if p.get_median_ping())

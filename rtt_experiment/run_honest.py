@@ -8,7 +8,7 @@ from ipv8.configuration import get_default_configuration
 
 ipv8_instances = []
 configuration = get_default_configuration()
-configuration['walker_interval'] = 0.05
+configuration['walker_interval'] = 0.1
 configuration['keys'] = [{
             'alias': "my peer",
             'generation': u'curve25519',
@@ -17,14 +17,7 @@ configuration['keys'] = [{
 configuration['overlays'] = [{
     'class': 'RTTExperimentCommunity',
     'key': "my peer",
-    'walkers': [{
-                    'strategy': "RandomWalk",
-                    'peers': -1,
-                    'init': {
-                        'timeout': 5.0,
-                        'window_size': 64
-                    }
-                }],
+    'walkers': [],
     'initialize': {
         'experiment_size': int(sys.argv[1], 10),
         'ipv8s': ipv8_instances
