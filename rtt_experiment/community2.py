@@ -16,6 +16,16 @@ from ipv8.peerdiscovery.community import PingRequestCache
 from ipv8.peerdiscovery.payload import PingPayload, PongPayload
 
 
+class PingRequestTerminateCache(PingRequestCache):
+
+    def __init__(self, request_cache, identifier, peer, start_time, network):
+        super(PingRequestTerminateCache, self).__init__(request_cache, identifier, peer, start_time)
+        self.network = network
+
+    def on_timeout(self):
+        self.network.remove_peer(self.peer)
+
+
 class RTTExperimentCommunity(DiscoveryCommunity):
 
     def __init__(self, my_peer, endpoint, network, experiment_size,
@@ -72,7 +82,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         if no_cache:
             self.reverse_nonce_map[nonce] = peer
         else:
-            self.request_cache.add(PingRequestCache(self.request_cache, nonce, peer, time.time()))
+            self.request_cache.add(PingRequestTerminateCache(self.request_cache, nonce, peer, time.time(), self.network))
 
         ping_cache = self.RTTs.get(peer, {})
         ping_cache[nonce] = [time.time(), -1]
@@ -205,11 +215,15 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                                                         min(len(self.unique_addresses), self.experiment_size)))
                     print "Unique:", len(self.unique_addresses)
                 self.bootstrap()
-                for address in self.get_walkable_addresses():
-                    self.walk_to(address)
+                if self.network._all_addresses:
+                    for address in random.sample(self.network._all_addresses,
+                                                 min(20, len(self.network._all_addresses))):
+                        self.walk_to(address)
             elif any(p.get_median_ping() is None for p in self.victim_set):
-                print "Missing pings!"
-                for p in self.victim_set:
-                    if not p.get_median_ping():
-                        self.send_ping(p)
+                missing_ping_set = [p for p in self.victim_set if p.get_median_ping() is None]
+                print "Missing pings for %d peers!" % len(missing_ping_set)
+                if missing_ping_set:
+                    for p in random.sample(missing_ping_set, min(20, len(missing_ping_set))):
+                        if not p.get_median_ping():
+                            self.send_ping(p)
                 self.victim_set = set(p for p in self.victim_set if p.get_median_ping())
