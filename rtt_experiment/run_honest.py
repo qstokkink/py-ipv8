@@ -2,7 +2,7 @@ import sys
 
 from twisted.internet import reactor
 
-from .community2 import RTTExperimentCommunity
+from .community2 import RTTExperimentIsolated
 from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
@@ -26,6 +26,6 @@ configuration['overlays'] = [{
 }]
 configuration['logger'] = { 'level': "INFO" }
 
-ipv8_instances.append(IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentCommunity}))
+ipv8_instances.append(IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentIsolated}))
 
 reactor.run()

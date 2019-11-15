@@ -2,7 +2,7 @@ import sys
 
 from twisted.internet import reactor
 
-from .community import RTTExperimentCommunity
+from .community2 import RTTExperimentIsolated
 from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
@@ -30,6 +30,6 @@ for i in xrange(1, sybil_count+1):
         'on_start': []
     }]
 
-    IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentCommunity})
+    IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentIsolated})
 
 reactor.run()
