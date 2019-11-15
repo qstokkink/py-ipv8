@@ -15,6 +15,7 @@ for i in xrange(1, sybil_count+1):
                 'generation': u'curve25519',
                 'file': u"sybilec%d.pem" % i
             }]
+    configuration['port'] = 15000 + 2*i
     configuration['overlays'] = [{
         'class': 'RTTExperimentCommunity',
         'key': "my peer",

@@ -211,7 +211,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             if len(self.victim_set) < self.experiment_size:
                 print "Got:", len(self.get_peers()), "Waiting for:", self.experiment_size
                 if len(self.get_peers()) >= self.experiment_size:
-                    self.unique_addresses = {p.address[0]: p for p in self.get_peers()}
+                    self.unique_addresses = {p: p for p in self.get_peers()} #{p.address[0]: p for p in self.get_peers()}
                     self.victim_set = set(random.sample(self.unique_addresses.values(),
                                                         min(len(self.unique_addresses), self.experiment_size)))
                     print "Unique:", len(self.unique_addresses)
