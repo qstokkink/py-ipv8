@@ -24,7 +24,7 @@ class PingRequestTerminateCache(PingRequestCache):
         self.network = network
 
     def on_timeout(self):
-        self.network.remove_peer(self.peer)
+        pass #self.network.remove_peer(self.peer)
 
 
 class RTTExperimentCommunity(DiscoveryCommunity):
@@ -97,7 +97,6 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         return nonce
 
     def answer_later(self, address, packet):
-        self.logger.critical("Pong (%s, %d)" % address)
         self.endpoint.send(address, packet)
 
     @lazy_wrapper_unsigned(GlobalTimeDistributionPayload, PingPayload)
@@ -121,6 +120,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 return
             cache.finish()
             peer = cache.peer
+            shadow_peer = self.network.get_verified_by_public_key_bin(cache.peer.public_key.key_to_bin())
+            shadow_peer.pings = cache.peer.pings
         self.RTTs[peer][payload.identifier][1] = rcv_time
 
     def estimate_sybils(self):
@@ -228,12 +229,12 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                                                  min(20, len(self.network._all_addresses))):
                         self.walk_to(address)
             elif any(p.get_median_ping() is None for p in self.victim_set):
-                missing_ping_set = [p for p in self.victim_set if p.get_median_ping() is None]
+                missing_ping_set = [p for p in self.unique_addresses if p.get_median_ping() is None]
                 print "Missing pings for %d peers!" % len(missing_ping_set)
                 if missing_ping_set:
                     for p in random.sample(missing_ping_set, min(20, len(missing_ping_set))):
-                        if not p.get_median_ping():
-                            self.send_ping(p)
+                        self.send_ping(p)
+                        print "Ping", p
                 self.victim_set = set(p for p in self.victim_set if p.get_median_ping())
 
 
