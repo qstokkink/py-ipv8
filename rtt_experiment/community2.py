@@ -4,7 +4,7 @@ import random
 import time
 
 from twisted.internet import reactor
-from twisted.internet.task import LoopingCall
+from twisted.internet.task import deferLater, LoopingCall
 
 import ipv8.community
 ipv8.community.BOOTSTRAP_TIMEOUT = 10.0
@@ -100,8 +100,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         packet = self.create_pong(payload.identifier)
         if self.pong_delay:
             self.register_anonymous_task('send_pong_later',
-                                         reactor.callLater(self.pong_delay, self.endpoint.send,
-                                                           source_address, packet))
+                                         deferLater(reactor, self.pong_delay, self.endpoint.send,
+                                                             source_address, packet))
         else:
             self.endpoint.send(source_address, packet)
 
