@@ -26,6 +26,10 @@ class PingRequestTerminateCache(PingRequestCache):
     def on_timeout(self):
         pass #self.network.remove_peer(self.peer)
 
+    @property
+    def timeout_delay(self):
+        return 20.0
+
 
 class RTTExperimentCommunity(DiscoveryCommunity):
 
@@ -55,7 +59,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             self.register_task("update", LoopingCall(self.update)).start(5.0, False)
 
     def walk_to(self, address):
-        if not self.measuring:
+        if not self.measuring and address[0] != self.my_estimated_wan[0] and address[0] != self.my_estimated_lan[0]:
             super(RTTExperimentCommunity, self).walk_to(address)
 
     def on_similarity_request(self, source_address, packet):
@@ -68,8 +72,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         if not self.measuring:
             if payload.wan_introduction_address[0] != '0.0.0.0':
                 self.walk_to(payload.wan_introduction_address)
-            if self.is_sybil == 0 and not peer.get_median_ping():
-                self.send_ping(peer)
+            #if self.is_sybil == 0 and not peer.get_median_ping() and peer.address not in self.network.blacklist:
+            #    self.send_ping(peer)
 
     def introduction_request_callback(self, peer, dist, payload):
         if not self.measuring:
@@ -91,7 +95,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         ping_cache = self.RTTs.get(peer, {})
         ping_cache[nonce] = [time.time(), -1]
         self.RTTs[peer] = ping_cache
-
+        print "Ping", peer, peer.pings, nonce
         self.endpoint.send(peer.address, packet)
 
         return nonce
@@ -113,15 +117,17 @@ class RTTExperimentCommunity(DiscoveryCommunity):
     def on_pong(self, source_address, dist, payload):
         rcv_time = time.time()
         peer = self.reverse_nonce_map.pop(payload.identifier, None)
+        print "Pong", payload.identifier
         if not peer:
             try:
                 cache = self.request_cache.pop(u"discoverypingcache", payload.identifier)
             except KeyError:
+                print "Dropping pong without peer!"
                 return
+            cache.peer = self.network.get_verified_by_public_key_bin(cache.peer.public_key.key_to_bin())
             cache.finish()
             peer = cache.peer
-            shadow_peer = self.network.get_verified_by_public_key_bin(cache.peer.public_key.key_to_bin())
-            shadow_peer.pings = cache.peer.pings
+            print "Pong", peer, peer.pings
         self.RTTs[peer][payload.identifier][1] = rcv_time
 
     def estimate_sybils(self):
@@ -229,12 +235,11 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                                                  min(20, len(self.network._all_addresses))):
                         self.walk_to(address)
             elif any(p.get_median_ping() is None for p in self.victim_set):
-                missing_ping_set = [p for p in self.unique_addresses if p.get_median_ping() is None]
+                missing_ping_set = [p for p in self.victim_set if p.get_median_ping() is None]
                 print "Missing pings for %d peers!" % len(missing_ping_set)
                 if missing_ping_set:
-                    for p in random.sample(missing_ping_set, min(20, len(missing_ping_set))):
+                    for p in random.sample(missing_ping_set, min(2, len(missing_ping_set))):
                         self.send_ping(p)
-                        print "Ping", p
                 self.victim_set = set(p for p in self.victim_set if p.get_median_ping())
 
 
