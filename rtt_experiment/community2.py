@@ -95,7 +95,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         ping_cache = self.RTTs.get(peer, {})
         ping_cache[nonce] = [time.time(), -1]
         self.RTTs[peer] = ping_cache
-        print "Ping", peer, peer.pings, nonce
+
         self.endpoint.send(peer.address, packet)
 
         return nonce
@@ -117,17 +117,14 @@ class RTTExperimentCommunity(DiscoveryCommunity):
     def on_pong(self, source_address, dist, payload):
         rcv_time = time.time()
         peer = self.reverse_nonce_map.pop(payload.identifier, None)
-        print "Pong", payload.identifier
         if not peer:
             try:
                 cache = self.request_cache.pop(u"discoverypingcache", payload.identifier)
             except KeyError:
-                print "Dropping pong without peer!"
                 return
             cache.peer = self.network.get_verified_by_public_key_bin(cache.peer.public_key.key_to_bin())
             cache.finish()
             peer = cache.peer
-            print "Pong", peer, peer.pings
         self.RTTs[peer][payload.identifier][1] = rcv_time
 
     def estimate_sybils(self):
@@ -240,7 +237,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                 if missing_ping_set:
                     for p in random.sample(missing_ping_set, min(2, len(missing_ping_set))):
                         self.send_ping(p)
-                self.victim_set = set(p for p in self.victim_set if p.get_median_ping())
+                self.victim_set = set(p for p in self.victim_set if p.get_median_ping() is not None)
 
 
 class RTTExperimentIsolated(RTTExperimentCommunity):
