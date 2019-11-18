@@ -24,7 +24,7 @@ class PingRequestTerminateCache(PingRequestCache):
         self.network = network
 
     def on_timeout(self):
-        self.network.remove_peer(self.peer)
+        pass #self.network.remove_peer(self.peer)
 
 
 class RTTExperimentCommunity(DiscoveryCommunity):
@@ -64,9 +64,10 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         pass
 
     def introduction_response_callback(self, peer, dist, payload):
-        if not self.measuring and payload.wan_introduction_address[0] != '0.0.0.0':
-            self.walk_to(payload.wan_introduction_address)
-            if self.is_sybil == 0:
+        if not self.measuring:
+            if payload.wan_introduction_address[0] != '0.0.0.0':
+                self.walk_to(payload.wan_introduction_address)
+            if self.is_sybil == 0 and not peer.get_median_ping():
                 self.send_ping(peer)
 
     def introduction_request_callback(self, peer, dist, payload):

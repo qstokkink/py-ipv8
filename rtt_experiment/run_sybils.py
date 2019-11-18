@@ -23,8 +23,9 @@ for i in xrange(1, sybil_count+1):
                         'strategy': "RandomWalk",
                         'peers': -1,
                         'init': {
-                            'timeout': 60.0,
-                            'window_size': int(sys.argv[1], 10)
+                            'timeout': 100000.0,
+                            'window_size': int(sys.argv[1], 10),
+                            'reset_chance': 10
                         }
                     }],
         'initialize': {'experiment_size': int(sys.argv[1], 10),
