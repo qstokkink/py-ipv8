@@ -97,7 +97,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         return nonce
 
     def answer_later(self, address, packet):
-        print "Pong", address
+        self.logger.critical("Pong (%s, %d)" % address)
         self.endpoint.send(address, packet)
 
     @lazy_wrapper_unsigned(GlobalTimeDistributionPayload, PingPayload)
