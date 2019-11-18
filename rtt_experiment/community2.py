@@ -24,7 +24,7 @@ class PingRequestTerminateCache(PingRequestCache):
         self.network = network
 
     def on_timeout(self):
-        pass #self.network.remove_peer(self.peer)
+        self.network.remove_peer(self.peer)
 
 
 class RTTExperimentCommunity(DiscoveryCommunity):
@@ -34,7 +34,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         super(RTTExperimentCommunity, self).__init__(my_peer, endpoint, network, max_peers, anonymize)
         self.ipv8s = ipv8s
         self.is_sybil = is_sybil
-        self.pong_delay = max(0, is_sybil - 1) * 0.01  # Delta = 0.01
+        sybil_num = max(0, is_sybil - 1)
+        self.pong_delay = (int(sybil_num/8) + (sybil_num % 8)) * 0.01  # Delta = 0.01, walk depth=8
         self.experiment_size = experiment_size
         self.RTTs = {}
         self.measurements = []  # [(Peer1, Peer2, [nonces]), ]
