@@ -65,7 +65,8 @@ class RTTExperimentCommunity(DiscoveryCommunity):
     def introduction_response_callback(self, peer, dist, payload):
         if not self.measuring:
             self.walk_to(payload.wan_introduction_address)
-            self.send_ping(peer)
+            if self.is_sybil == 0:
+                self.send_ping(peer)
 
     def introduction_request_callback(self, peer, dist, payload):
         if not self.measuring:
