@@ -96,13 +96,17 @@ class RTTExperimentCommunity(DiscoveryCommunity):
 
         return nonce
 
+    def answer_later(self, address, packet):
+        print "Pong", address
+        self.endpoint.send(address, packet)
+
     @lazy_wrapper_unsigned(GlobalTimeDistributionPayload, PingPayload)
     def on_ping(self, source_address, dist, payload):
         packet = self.create_pong(payload.identifier)
         if self.pong_delay:
             self.register_anonymous_task('send_pong_later',
-                                         deferLater(reactor, self.pong_delay, self.endpoint.send,
-                                                             source_address, packet))
+                                         deferLater(reactor, self.pong_delay, self.answer_later,
+                                                    source_address, packet))
         else:
             self.endpoint.send(source_address, packet)
 
