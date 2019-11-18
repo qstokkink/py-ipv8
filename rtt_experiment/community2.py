@@ -12,6 +12,7 @@ ipv8.community.BOOTSTRAP_TIMEOUT = 10.0
 from ipv8.lazy_community import lazy_wrapper_unsigned
 from ipv8.peerdiscovery.community import DiscoveryCommunity
 from ipv8.messaging.payload_headers import GlobalTimeDistributionPayload
+from ipv8.peer import Peer
 from ipv8.peerdiscovery.community import PingRequestCache
 from ipv8.peerdiscovery.payload import PingPayload, PongPayload
 
@@ -63,7 +64,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         pass
 
     def introduction_response_callback(self, peer, dist, payload):
-        if not self.measuring:
+        if not self.measuring and payload.wan_introduction_address[0] != '0.0.0.0':
             self.walk_to(payload.wan_introduction_address)
             if self.is_sybil == 0:
                 self.send_ping(peer)
@@ -211,7 +212,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
             if len(self.victim_set) < self.experiment_size:
                 print "Got:", len(self.get_peers()), "Waiting for:", self.experiment_size
                 if len(self.get_peers()) >= self.experiment_size:
-                    self.unique_addresses = {p.address[0]: p for p in self.get_peers()}
+                    self.unique_addresses = {p: p for p in self.get_peers()} #{p.address[0]: p for p in self.get_peers()}
                     self.victim_set = set(random.sample(self.unique_addresses.values(),
                                                         min(len(self.unique_addresses), self.experiment_size)))
                     print "Unique:", len(self.unique_addresses)
@@ -228,3 +229,9 @@ class RTTExperimentCommunity(DiscoveryCommunity):
                         if not p.get_median_ping():
                             self.send_ping(p)
                 self.victim_set = set(p for p in self.victim_set if p.get_median_ping())
+
+
+class RTTExperimentIsolated(RTTExperimentCommunity):
+
+    master_peer = Peer(("4c69624e61434c504b3a53204cdaae34bca3d5c3d6442ce5ec8cf2db04507ea038c7dde5503074bf4028a19e3a"
+                        "4a5bccddc2b852a28af4522a41b5afe2d44424056b691e5d6e0c634a73").decode('hex'))
