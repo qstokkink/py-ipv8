@@ -7,6 +7,10 @@ from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
 
+WILD_PEERS = 50
+SYBIL_PEERS = int(sys.argv[1], 10)
+
+
 configuration = get_default_configuration()
 configuration['walker_interval'] = 0.1
 configuration['keys'] = [{
@@ -19,7 +23,7 @@ configuration['overlays'] = [{
         'key': "my peer",
         'walkers': [],
         'initialize': {
-            'experiment_size': int(sys.argv[1], 10),
+            'experiment_size': SYBIL_PEERS,
             'is_sybil': 1
         },
         'on_start': []
@@ -30,14 +34,16 @@ configuration['overlays'] = [{
         'walkers': [
             {
                 'strategy': "RandomWalk",
-                'peers': 50,
+                'peers': WILD_PEERS,
                 'init': {
-                    'timeout': 60.0
+                    'timeout': 60.0,
+                    'window_size': int(sys.argv[1], 10),
+                    'reset_chance': 10
                 }
             }
         ],
         'initialize': {
-            'max_peers': 50
+            'max_peers': WILD_PEERS
         },
         'on_start': [
             ('resolve_dns_bootstrap_addresses',)
@@ -46,6 +52,23 @@ configuration['overlays'] = [{
 ]
 configuration['logger'] = { 'level': "INFO" }
 
-IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentIsolated})
+ipv8 = IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentIsolated})
+
+
+def check_experiment_start(ipv8):
+    ready_overlays = 0
+    for overlay in ipv8.overlays:
+        print overlay, len(overlay.get_peers())
+        if isinstance(overlay, RTTExperimentIsolated):
+            ready_overlays += 1 if len(overlay.get_peers()) >= SYBIL_PEERS else 0
+        else:
+            ready_overlays += 1 if len(overlay.get_peers()) >= WILD_PEERS else 0
+    if ready_overlays == 2:
+        print "Done!"  # TODO
+    else:
+        reactor.callLater(5.0, check_experiment_start, ipv8)
+
+
+reactor.callWhenRunning(check_experiment_start, ipv8)
 
 reactor.run()
