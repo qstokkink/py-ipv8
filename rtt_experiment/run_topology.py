@@ -4,6 +4,7 @@ import sys
 from twisted.internet import reactor
 
 from .community2 import RTTExperimentIsolated
+from .topology import create_topology
 from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
@@ -59,15 +60,15 @@ ipv8 = IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExper
 def start_experiment(honest_community, sybil_community, sybil_count):
     honest_count = 100 - sybil_count # 100 peers total
 
-    poolA = set(random.sample(honest_community.get_peers(), honest_count))
-    poolB = set(random.sample(sybil_community.get_peers(), sybil_count))
+    poolA = set(random.sample(honest_community.get_peers(), honest_count) if honest_count else [])
+    poolB = set(random.sample(sybil_community.get_peers(), sybil_count) if sybil_count else [])
     poolAB = poolA | poolB
 
     bootstrap_func = lambda: random.choice(poolAB)
     walk_func = lambda from_peer: random.choice(poolB if from_peer in poolB else poolAB)
+    ping_func = lambda peer: (sybil_community if peer in poolB else honest_community).send_ping(peer)
 
-    # TODO:
-    #create_topology(bootstrap_func, walk_func, update_rate=0.5, experiment_time=60.0)
+    create_topology(bootstrap_func, walk_func, ping_func, update_rate=0.5, experiment_time=60.0)
 
 
 def start_experiments(honest_community, sybil_community):
