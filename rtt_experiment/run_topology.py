@@ -1,3 +1,4 @@
+import random
 import sys
 
 from twisted.internet import reactor
@@ -55,6 +56,25 @@ configuration['logger'] = { 'level': "INFO" }
 ipv8 = IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentIsolated})
 
 
+def start_experiment(honest_community, sybil_community, sybil_count):
+    honest_count = 100 - sybil_count # 100 peers total
+
+    poolA = set(random.sample(honest_community.get_peers(), honest_count))
+    poolB = set(random.sample(sybil_community.get_peers(), sybil_count))
+    poolAB = poolA | poolB
+
+    bootstrap_func = lambda: random.choice(poolAB)
+    walk_func = lambda from_peer: random.choice(poolB if from_peer in poolB else poolAB)
+
+    # TODO:
+    #create_topology(bootstrap_func, walk_func, update_rate=0.5, experiment_time=60.0)
+
+
+def start_experiments(honest_community, sybil_community):
+    for sybil_count in [49, 59, 69, 79, 89, 99]:
+        start_experiment(honest_community, sybil_community, sybil_count)
+
+
 def check_experiment_start(ipv8):
     ready_overlays = 0
     for overlay in ipv8.overlays:
@@ -64,7 +84,9 @@ def check_experiment_start(ipv8):
         else:
             ready_overlays += 1 if len(overlay.get_peers()) >= WILD_PEERS else 0
     if ready_overlays == 2:
-        print "Done!"  # TODO
+        sybil_community = [overlay for overlay in ipv8.overlays if isinstance(overlay, RTTExperimentIsolated)][0]
+        honest_community = [overlay for overlay in ipv8.overlays if overlay != sybil_community][0]
+        reactor.callInThread(start_experiments, honest_community, sybil_community)
     else:
         reactor.callLater(5.0, check_experiment_start, ipv8)
 
