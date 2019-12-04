@@ -23,7 +23,17 @@ configuration['keys'] = [{
 configuration['overlays'] = [{
         'class': 'RTTExperimentIsolated',
         'key': "my peer",
-        'walkers': [],
+        'walkers': [
+            {
+                'strategy': "RandomWalk",
+                'peers': SYBIL_PEERS,
+                'init': {
+                    'timeout': 60.0,
+                    'window_size': SYBIL_PEERS,
+                    'reset_chance': 10
+                }
+            }
+        ],
         'initialize': {
             'experiment_size': SYBIL_PEERS,
             'is_sybil': 1
@@ -39,7 +49,7 @@ configuration['overlays'] = [{
                 'peers': WILD_PEERS,
                 'init': {
                     'timeout': 60.0,
-                    'window_size': int(sys.argv[1], 10),
+                    'window_size': WILD_PEERS,
                     'reset_chance': 10
                 }
             }
@@ -87,11 +97,12 @@ def start_experiments(honest_community, sybil_community):
 def check_experiment_start(ipv8):
     ready_overlays = 0
     for overlay in ipv8.overlays:
-        print overlay, len(overlay.get_peers())
+        ready_peers = len([p for p in overlay.get_peers() if p.get_median_ping() is not None])
+        print overlay, ready_peers
         if isinstance(overlay, RTTExperimentIsolated):
-            ready_overlays += 1 if len(overlay.get_peers()) >= SYBIL_PEERS else 0
+            ready_overlays += 1 if ready_peers >= SYBIL_PEERS else 0
         else:
-            ready_overlays += 1 if len(overlay.get_peers()) >= WILD_PEERS else 0
+            ready_overlays += 1 if ready_peers >= WILD_PEERS else 0
     if ready_overlays == 2:
         sybil_community = [overlay for overlay in ipv8.overlays if isinstance(overlay, RTTExperimentIsolated)][0]
         honest_community = [overlay for overlay in ipv8.overlays if overlay != sybil_community][0]

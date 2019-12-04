@@ -1,4 +1,6 @@
+import itertools
 import math
+import time
 
 
 def test_peers(ping_func, peer1, peer2):
@@ -52,5 +54,27 @@ def sybil_score(series):
     return mse  # < 10.0 == Sybil
 
 
+HEAD_COUNT = 6
+DELTA = 0.05
+
+
+def is_distinct(peer, others):
+    return all(abs(p - peer.get_median_ping()) > DELTA for p in others)
+
+
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
-    pass # Create topology: we can actively sleep here, it's in a thread
+    # TODO: Create topology: we can actively sleep here, it's in a thread
+    blacklist = {}
+    heads = set()
+    pending_checks = set()
+
+    experiment_end_time = time.time() + experiment_time
+
+    while len(heads) < HEAD_COUNT and time.time() < experiment_end_time:
+        peer = bootstrap_func()
+        if is_distinct(peer, heads):
+            heads.add(peer)
+
+    pending_checks = itertools.combinations(heads, 2)
+
+    # TODO: Create main ancestry, empty pending_checks queue
