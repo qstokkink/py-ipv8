@@ -3,7 +3,7 @@ import sys
 
 from twisted.internet import reactor
 
-from .community2 import RTTExperimentIsolated
+from .community2 import RTTExperimentCommunity, RTTExperimentIsolated
 from .topology import create_topology
 from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
@@ -21,7 +21,7 @@ configuration['keys'] = [{
             'file': u"honestec.pem"
         }]
 configuration['overlays'] = [{
-        'class': 'RTTExperimentCommunity',
+        'class': 'RTTExperimentIsolated',
         'key': "my peer",
         'walkers': [],
         'initialize': {
@@ -31,7 +31,7 @@ configuration['overlays'] = [{
         'on_start': []
     },
     {
-        'class': 'DiscoveryCommunity',
+        'class': 'RTTExperimentCommunity',
         'key': "my peer",
         'walkers': [
             {
@@ -45,7 +45,9 @@ configuration['overlays'] = [{
             }
         ],
         'initialize': {
-            'max_peers': WILD_PEERS
+            'max_peers': WILD_PEERS,
+            'experiment_size': WILD_PEERS,
+            'is_sybil': 1
         },
         'on_start': [
             ('resolve_dns_bootstrap_addresses',)
@@ -54,7 +56,10 @@ configuration['overlays'] = [{
 ]
 configuration['logger'] = { 'level': "INFO" }
 
-ipv8 = IPv8(configuration, extra_communities={'RTTExperimentCommunity': RTTExperimentIsolated})
+ipv8 = IPv8(configuration, extra_communities={
+    'RTTExperimentIsolated': RTTExperimentIsolated,
+    'RTTExperimentCommunity': RTTExperimentCommunity
+})
 
 
 def start_experiment(honest_community, sybil_community, sybil_count):
@@ -66,9 +71,12 @@ def start_experiment(honest_community, sybil_community, sybil_count):
 
     bootstrap_func = lambda: random.choice(poolAB)
     walk_func = lambda from_peer: random.choice(poolB if from_peer in poolB else poolAB)
-    ping_func = lambda peer: (sybil_community if peer in poolB else honest_community).send_ping(peer)
+    ping_func = lambda peer: (sybil_community if peer in poolB else honest_community).send_ping(peer, True)
+    get_ping_func = lambda peer, nonce: (sybil_community.RTTs[peer][nonce]
+                                         if sybil_community.RTTs.get(peer, {}).get(nonce, None) is not None else
+                                         honest_community.RTTs[peer][nonce])
 
-    create_topology(bootstrap_func, walk_func, ping_func, update_rate=0.5, experiment_time=60.0)
+    create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0)
 
 
 def start_experiments(honest_community, sybil_community):
