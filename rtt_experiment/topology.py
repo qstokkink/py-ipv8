@@ -67,7 +67,6 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
     blacklist = {}
     heads = set()  # Root nodes
     ancestry = {}  # Next node, per node
-    pending_checks = set()
 
     experiment_end_time = time.time() + experiment_time
 
@@ -76,12 +75,29 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
         if is_distinct(peer, heads):
             heads.add(peer)
 
-    pending_checks = itertools.combinations(heads, 2)
+    pending_checks = set(itertools.combinations(heads, 2))
+    previous_check = None
 
     while time.time() < experiment_end_time:
         start_time = time.time()
 
-        # TODO: Create main ancestry, empty pending_checks queue
+        # # TODO: Create main ancestry through walking from heads until we have 20 peers
+        # TODO: Keep track of tails
+        # Make pending check for (walk target/tail, introduced)
+
+        # Empty pending_checks queue
+        if previous_check is not None:
+            peer1, nonces = previous_check
+            series = [get_ping_func(peer1, nonce) for nonce in nonces]
+            sscore = sybil_score(series)
+            if sscore is not None and sscore < 10.0:
+                # Sybils!
+                pass  # TODO Remove peer1 and following nodes, add to blacklist - possibly get new bootstrap head
+                # TODO: Requires recursive delete
+            previous_check = None
+
+        if pending_checks:
+            previous_check = test_peers(ping_func, *(pending_checks.pop()))
 
         sleep_time = update_rate - (time.time() - start_time)
         if sleep_time > 0.01:
