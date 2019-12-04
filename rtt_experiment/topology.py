@@ -65,7 +65,8 @@ def is_distinct(peer, others):
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
     # TODO: Create topology: we can actively sleep here, it's in a thread
     blacklist = {}
-    heads = set()
+    heads = set()  # Root nodes
+    ancestry = {}  # Next node, per node
     pending_checks = set()
 
     experiment_end_time = time.time() + experiment_time
@@ -77,4 +78,11 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
 
     pending_checks = itertools.combinations(heads, 2)
 
-    # TODO: Create main ancestry, empty pending_checks queue
+    while time.time() < experiment_end_time:
+        start_time = time.time()
+
+        # TODO: Create main ancestry, empty pending_checks queue
+
+        sleep_time = update_rate - (time.time() - start_time)
+        if sleep_time > 0.01:
+            time.sleep(sleep_time)
