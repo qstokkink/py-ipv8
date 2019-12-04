@@ -62,11 +62,43 @@ def is_distinct(peer, others):
     return all(abs(p - peer.get_median_ping()) > DELTA for p in others)
 
 
+def remove_node(peer, heads, ancestry):
+    new_head = peer in heads
+    tails = {}
+
+    for head in heads:
+        # Loop through edges
+        previous2 = None
+        previous = None
+        current = head
+        do_del = False
+        while current is not None and current in ancestry:
+            if not do_del:
+                previous2 = previous
+                previous = current
+            if current == peer:
+                do_del = True
+            if do_del:
+                current = ancestry.pop(current, None)
+            else:
+                current = ancestry.get(current, None)
+        if previous is not None:
+            tails[previous] = previous2
+
+    if peer in heads:
+        heads.remove(peer)
+    if peer in tails:
+        tails.pop(peer)
+
+    return new_head, tails
+
+
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
     # TODO: Create topology: we can actively sleep here, it's in a thread
     blacklist = {}
     heads = set()  # Root nodes
-    ancestry = {}  # Next node, per node
+    tails = {}  # Tail node: parent
+    ancestry = {}  # Node: child
 
     experiment_end_time = time.time() + experiment_time
 
