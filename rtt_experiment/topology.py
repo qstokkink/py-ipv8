@@ -94,11 +94,12 @@ def remove_node(peer, heads, ancestry):
 
 
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
-    # TODO: Create topology: we can actively sleep here, it's in a thread
+    # Create topology: we can actively sleep here, it's in a thread
     blacklist = set()
     heads = set()  # Root nodes
     tails = {}  # Tail node: parent
     ancestry = {}  # Node: child
+    mse_history = {}  # (a,b): score
 
     experiment_end_time = time.time() + experiment_time
 
@@ -113,16 +114,37 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
 
     while time.time() < experiment_end_time:
         start_time = time.time()
+        peer_count = len(heads) + len(ancestry)
 
-        # # TODO: Create main ancestry through walking from heads until we have 20 peers
-        # TODO: Keep track of tails
-        # Make pending check for (walk target/tail, introduced)
+        # Create main ancestry through walking from heads until we have 20 peers
+        if peer_count < 20:
+            new_tails = {}
+            for tail in tails:
+                peer = walk_func(tail)
+                if peer not in blacklist and peer not in heads and peer not in ancestry.values():
+                    new_tails[peer] = tail
+                    pending_checks.add((tail, peer))
+                else:
+                    new_tails[tail] = tails[tail]
+            tails = new_tails
+        else:
+            worst = sorted(mse_history.items(), key=lambda x: x[1])
+            new_head, tails = remove_node(worst, heads, ancestry)
+            blacklist.add(worst)
+            if new_head:
+                peer = bootstrap_func()
+                while not is_distinct(peer, heads):
+                    peer = bootstrap_func()
+                heads.add(peer)
+                tails[peer] = None
 
         # Empty pending_checks queue
         if previous_check is not None:
             peer1, nonces = previous_check
             series = [get_ping_func(peer1, nonce) for nonce in nonces]
             sscore = sybil_score(series)
+            if sscore is not None:
+                mse_history[peer1] = sscore
             if sscore is not None and sscore < 10.0:
                 # Sybils!
                 # Remove peer1 and following nodes, add to blacklist - possibly get new bootstrap head
