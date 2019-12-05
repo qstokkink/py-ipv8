@@ -95,7 +95,7 @@ def remove_node(peer, heads, ancestry):
 
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
     # TODO: Create topology: we can actively sleep here, it's in a thread
-    blacklist = {}
+    blacklist = set()
     heads = set()  # Root nodes
     tails = {}  # Tail node: parent
     ancestry = {}  # Node: child
@@ -106,6 +106,7 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
         peer = bootstrap_func()
         if is_distinct(peer, heads):
             heads.add(peer)
+            tails[peer] = None
 
     pending_checks = set(itertools.combinations(heads, 2))
     previous_check = None
@@ -124,8 +125,16 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
             sscore = sybil_score(series)
             if sscore is not None and sscore < 10.0:
                 # Sybils!
-                pass  # TODO Remove peer1 and following nodes, add to blacklist - possibly get new bootstrap head
-                # TODO: Requires recursive delete
+                # Remove peer1 and following nodes, add to blacklist - possibly get new bootstrap head
+                new_head, tails = remove_node(peer1, heads, ancestry)
+                blacklist.add(peer1)
+                if new_head:
+                    peer = bootstrap_func()
+                    while not is_distinct(peer, heads):
+                        peer = bootstrap_func()
+                    heads.add(peer)
+                    tails[peer] = None
+
             previous_check = None
 
         if pending_checks:
