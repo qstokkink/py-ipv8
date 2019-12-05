@@ -136,7 +136,7 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
                     new_tails[tail] = tails[tail]
             tails = new_tails
         else:
-            worst = sorted(mse_history.items(), key=lambda x: x[1])[0]
+            worst, sscore = sorted(mse_history.items(), key=lambda x: x[1])[0]
             new_head, tails = remove_node(worst, heads, ancestry)
             blacklist.append(worst)
             if len(blacklist) > 10:

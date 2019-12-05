@@ -10,7 +10,7 @@ from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
 
-WILD_PEERS = 50
+WILD_PEERS = 55
 SYBIL_PEERS = int(sys.argv[1], 10)
 
 
