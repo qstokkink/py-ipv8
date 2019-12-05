@@ -49,7 +49,7 @@ class RTTExperimentCommunity(DiscoveryCommunity):
         self.completed = False
         self.measuring = False
         self.reverse_nonce_map = {}
-        self.expected_measurements = math.factorial(experiment_size) / math.factorial(2) / math.factorial(experiment_size - 2)
+        self.expected_measurements = math.factorial(experiment_size) / math.factorial(2) / math.factorial(experiment_size - 2) if experiment_size > 0 else 0
 
         if not self.is_sybil:
             with open(self.my_peer.mid.encode('hex') + '.map', 'w') as f:

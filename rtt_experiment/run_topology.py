@@ -1,4 +1,5 @@
 import random
+import time
 import sys
 
 from twisted.internet import reactor
@@ -73,11 +74,14 @@ ipv8 = IPv8(configuration, extra_communities={
 
 
 def start_experiment(honest_community, sybil_community, sybil_count):
-    honest_count = 100 - sybil_count # 100 peers total
+    honest_count = 100 - sybil_count
 
     poolA = set(random.sample(honest_community.get_peers(), honest_count) if honest_count else [])
     poolB = set(random.sample(sybil_community.get_peers(), sybil_count) if sybil_count else [])
-    poolAB = poolA | poolB
+
+    poolAB = list(poolA | poolB)
+    poolA = list(poolA)
+    poolB = list(poolB)
 
     bootstrap_func = lambda: random.choice(poolAB)
     walk_func = lambda from_peer: random.choice(poolB if from_peer in poolB else poolAB)
@@ -86,7 +90,23 @@ def start_experiment(honest_community, sybil_community, sybil_count):
                                          if sybil_community.RTTs.get(peer, {}).get(nonce, None) is not None else
                                          honest_community.RTTs[peer][nonce])
 
-    create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0)
+    start_time = time.time()
+    psot = create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0)
+    print "Experiment concluded, processing!"
+    first_honest_time = None
+    honest_progression_x = []
+    honest_progression_y = []
+    print "Start time:", start_time
+    for timestamp, progression in psot:
+        honest_peers = len([p for p in progression if p in poolA])
+        if first_honest_time is None and honest_peers > 0:
+            first_honest_time = timestamp
+            print "Time of first honest peer:", timestamp
+        honest_progression_x.append(timestamp)
+        honest_progression_y.append(honest_peers)
+    print "Honest progression t:", honest_progression_x
+    print "Honest progression y:", honest_progression_y
+    reactor.callFromThread(reactor.stop)
 
 
 def start_experiments(honest_community, sybil_community):
@@ -103,6 +123,10 @@ def check_experiment_start(ipv8):
             ready_overlays += 1 if ready_peers >= SYBIL_PEERS else 0
         else:
             ready_overlays += 1 if ready_peers >= WILD_PEERS else 0
+        for peer in overlay.get_peers():
+            if peer.get_median_ping() is None:
+                overlay.send_ping(peer)
+                continue
     if ready_overlays == 2:
         sybil_community = [overlay for overlay in ipv8.overlays if isinstance(overlay, RTTExperimentIsolated)][0]
         honest_community = [overlay for overlay in ipv8.overlays if overlay != sybil_community][0]

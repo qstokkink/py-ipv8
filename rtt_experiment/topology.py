@@ -43,7 +43,7 @@ def get_measure_min_max(series):
 
 
 def sybil_score(series):
-    clean_series = [(t.start, t.end) for t in series if t.end != -1]
+    clean_series = [(t[0], t[1]) for t in series if t[1] != -1]
     if len(clean_series) <= 1:
         return None
     clean_series.sort(key=lambda x: x[0])
@@ -59,7 +59,10 @@ DELTA = 0.05
 
 
 def is_distinct(peer, others):
-    return all(abs(p - peer.get_median_ping()) > DELTA for p in others)
+    if peer.get_median_ping() is None:
+        print "No median ping for", peer
+        return False
+    return all(abs(p.get_median_ping() - peer.get_median_ping()) > DELTA for p in others)
 
 
 def remove_node(peer, heads, ancestry):
@@ -95,11 +98,13 @@ def remove_node(peer, heads, ancestry):
 
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
     # Create topology: we can actively sleep here, it's in a thread
-    blacklist = set()
+    blacklist = []
     heads = set()  # Root nodes
     tails = {}  # Tail node: parent
     ancestry = {}  # Node: child
     mse_history = {}  # (a,b): score
+
+    output = []
 
     experiment_end_time = time.time() + experiment_time
 
@@ -108,6 +113,8 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
         if is_distinct(peer, heads):
             heads.add(peer)
             tails[peer] = None
+
+    output.append((time.time(), list(heads)))
 
     pending_checks = set(itertools.combinations(heads, 2))
     previous_check = None
@@ -122,15 +129,18 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
             for tail in tails:
                 peer = walk_func(tail)
                 if peer not in blacklist and peer not in heads and peer not in ancestry.values():
+                    ancestry[tail] = peer
                     new_tails[peer] = tail
                     pending_checks.add((tail, peer))
                 else:
                     new_tails[tail] = tails[tail]
             tails = new_tails
         else:
-            worst = sorted(mse_history.items(), key=lambda x: x[1])
+            worst = sorted(mse_history.items(), key=lambda x: x[1])[0]
             new_head, tails = remove_node(worst, heads, ancestry)
-            blacklist.add(worst)
+            blacklist.append(worst)
+            if len(blacklist) > 10:
+                blacklist.pop(0)
             if new_head:
                 peer = bootstrap_func()
                 while not is_distinct(peer, heads):
@@ -149,7 +159,9 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
                 # Sybils!
                 # Remove peer1 and following nodes, add to blacklist - possibly get new bootstrap head
                 new_head, tails = remove_node(peer1, heads, ancestry)
-                blacklist.add(peer1)
+                blacklist.append(peer1)
+                if len(blacklist) > 10:
+                    blacklist.pop(0)
                 if new_head:
                     peer = bootstrap_func()
                     while not is_distinct(peer, heads):
@@ -162,6 +174,10 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
         if pending_checks:
             previous_check = test_peers(ping_func, *(pending_checks.pop()))
 
+        output.append((time.time(), list(heads) + ancestry.values()))
+
         sleep_time = update_rate - (time.time() - start_time)
         if sleep_time > 0.01:
             time.sleep(sleep_time)
+
+    return output
