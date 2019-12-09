@@ -1,6 +1,11 @@
 import itertools
 import math
+import random
 import time
+
+
+FILTER_WORST = True  # Alternative: filter random
+REMOVE_EDGE = False  # Alternative: relink edge
 
 
 def test_peers(ping_func, peer1, peer2):
@@ -79,6 +84,11 @@ def remove_node(peer, heads, ancestry):
             if not do_del:
                 previous2 = previous
                 previous = current
+            elif not REMOVE_EDGE:
+                ancestry[previous] = current
+                previous2 = previous
+                previous = current
+                do_del = False
             if current == peer:
                 do_del = True
             if do_del:
@@ -136,19 +146,24 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
                     new_tails[tail] = tails[tail]
             tails = new_tails
         else:
-            shist = sorted([h for h in mse_history.items() if len(h) > 1], key=lambda x: x[1])
-            if shist:
-                worst, sscore = shist[0]
-                new_head, tails = remove_node(worst, heads, ancestry)
-                blacklist.append(worst)
-                if len(blacklist) > 10:
-                    blacklist.pop(0)
-                if new_head:
-                    peer = bootstrap_func()
-                    while not is_distinct(peer, heads):
+            if FILTER_WORST:
+                shist = sorted([h for h in mse_history.items() if len(h) > 1], key=lambda x: x[1])
+                if shist:
+                    worst, sscore = shist[0]
+                    new_head, tails = remove_node(worst, heads, ancestry)
+                    blacklist.append(worst)
+                    if len(blacklist) > 10:
+                        blacklist.pop(0)
+                    if new_head:
                         peer = bootstrap_func()
-                    heads.add(peer)
-                    tails[peer] = None
+                        while not is_distinct(peer, heads):
+                            peer = bootstrap_func()
+                        heads.add(peer)
+                        tails[peer] = None
+            else:
+                pool = list(heads) + list(ancestry.keys())
+                if len(pool) > 1:
+                    pending_checks.add(tuple(random.sample(pool, 2)))
 
         # Empty pending_checks queue
         if previous_check is not None:
