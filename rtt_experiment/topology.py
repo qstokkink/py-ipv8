@@ -136,17 +136,19 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
                     new_tails[tail] = tails[tail]
             tails = new_tails
         else:
-            worst, sscore = sorted(mse_history.items(), key=lambda x: x[1])[0]
-            new_head, tails = remove_node(worst, heads, ancestry)
-            blacklist.append(worst)
-            if len(blacklist) > 10:
-                blacklist.pop(0)
-            if new_head:
-                peer = bootstrap_func()
-                while not is_distinct(peer, heads):
+            shist = sorted([h for h in mse_history.items() if len(h) > 1], key=lambda x: x[1])
+            if shist:
+                worst, sscore = shist[0]
+                new_head, tails = remove_node(worst, heads, ancestry)
+                blacklist.append(worst)
+                if len(blacklist) > 10:
+                    blacklist.pop(0)
+                if new_head:
                     peer = bootstrap_func()
-                heads.add(peer)
-                tails[peer] = None
+                    while not is_distinct(peer, heads):
+                        peer = bootstrap_func()
+                    heads.add(peer)
+                    tails[peer] = None
 
         # Empty pending_checks queue
         if previous_check is not None:

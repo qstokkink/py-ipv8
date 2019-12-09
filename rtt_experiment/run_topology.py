@@ -1,3 +1,4 @@
+import os
 import random
 import time
 import sys
@@ -93,25 +94,34 @@ def start_experiment(honest_community, sybil_community, sybil_count):
     start_time = time.time()
     psot = create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0)
     print "Experiment concluded, processing!"
+
+    outfile = str(sybil_count) + ".msr"
+    if not os.path.exists(outfile):
+        with open(outfile, 'w') as f:
+            f.write("time,count\n")
+
     first_honest_time = None
     honest_progression_x = []
     honest_progression_y = []
     print "Start time:", start_time
-    for timestamp, progression in psot:
-        honest_peers = len([p for p in progression if p in poolA])
-        if first_honest_time is None and honest_peers > 0:
-            first_honest_time = timestamp
-            print "Time of first honest peer:", timestamp
-        honest_progression_x.append(timestamp)
-        honest_progression_y.append(honest_peers)
+    with open(outfile, 'a') as f:
+        for timestamp, progression in psot:
+            honest_peers = len([p for p in progression if p in poolA])
+            if first_honest_time is None and honest_peers > 0:
+                first_honest_time = timestamp
+                print "Time of first honest peer:", timestamp
+            honest_progression_x.append(timestamp)
+            honest_progression_y.append(honest_peers)
+            f.write("%f,%d\n" % (timestamp-start_time, honest_peers))
     print "Honest progression t:", honest_progression_x
     print "Honest progression y:", honest_progression_y
-    reactor.callFromThread(reactor.stop)
+
 
 
 def start_experiments(honest_community, sybil_community):
-    for sybil_count in [49, 59, 69, 79, 89, 99]:
+    for sybil_count in ([49]*20): #[49, 59, 69, 79, 89, 99]:
         start_experiment(honest_community, sybil_community, sybil_count)
+    reactor.callFromThread(reactor.stop)
 
 
 def check_experiment_start(ipv8):
