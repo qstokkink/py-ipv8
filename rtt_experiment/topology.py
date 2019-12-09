@@ -4,8 +4,9 @@ import random
 import time
 
 
+DEFER_CLASSIFIER = True
 FILTER_WORST = True  # Alternative: filter random
-REMOVE_EDGE = False  # Alternative: relink edge
+REMOVE_EDGE = True  # Alternative: relink edge
 
 
 def test_peers(ping_func, peer1, peer2):
@@ -126,7 +127,10 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
 
     output.append((time.time(), list(heads)))
 
-    pending_checks = set(itertools.combinations(heads, 2))
+    if DEFER_CLASSIFIER:
+        pending_checks = set()
+    else:
+        pending_checks = set(itertools.combinations(heads, 2))
     previous_check = None
 
     while time.time() < experiment_end_time:
@@ -142,7 +146,7 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
                     ancestry[tail] = peer
                     new_tails[peer] = tail
                     pending_checks.add((tail, peer))
-                else:
+                elif not DEFER_CLASSIFIER:
                     new_tails[tail] = tails[tail]
             tails = new_tails
         else:
