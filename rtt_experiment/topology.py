@@ -5,8 +5,9 @@ import time
 
 
 DEFER_CLASSIFIER = True
-FILTER_WORST = True  # Alternative: filter random
-REMOVE_EDGE = True  # Alternative: relink edge
+DEEPEST = True
+FILTER_WORST = False  # Alternative: filter random
+REMOVE_EDGE = False  # Alternative: relink edge
 
 
 def test_peers(ping_func, peer1, peer2):
@@ -20,7 +21,7 @@ def test_peers(ping_func, peer1, peer2):
             nonces.append(ping_func(peer1))
         for _ in xrange(20):
             ping_func(peer2)
-    return peer1, nonces
+    return peer1, peer2, nonces
 
 
 def trendline_f(simple, series, ((x_min, y_min), (x_max, y_max))):
@@ -107,6 +108,29 @@ def remove_node(peer, heads, ancestry):
     return new_head, tails
 
 
+def get_deepest(peer1, peer2, heads, ancestry):
+    peer1_depth = 0
+    peer2_depth = 0
+
+    current_depth = 0
+    current_heads = heads
+
+    while current_heads:
+        next_heads = []
+        for head in current_heads:
+            if head == peer1:
+                peer1_depth = current_depth
+            elif head == peer2:
+                peer2_depth = current_depth
+            if head in ancestry:
+                next_heads.append(ancestry[head])
+        current_heads = next_heads
+        current_depth += 1
+
+    return peer2 if peer1_depth < peer2_depth else peer1
+
+
+
 def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0):
     # Create topology: we can actively sleep here, it's in a thread
     blacklist = []
@@ -171,7 +195,7 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
 
         # Empty pending_checks queue
         if previous_check is not None:
-            peer1, nonces = previous_check
+            peer1, peer2, nonces = previous_check
             series = [get_ping_func(peer1, nonce) for nonce in nonces]
             sscore = sybil_score(series)
             if sscore is not None:
@@ -179,8 +203,9 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
             if sscore is not None and sscore < 10.0:
                 # Sybils!
                 # Remove peer1 and following nodes, add to blacklist - possibly get new bootstrap head
-                new_head, tails = remove_node(peer1, heads, ancestry)
-                blacklist.append(peer1)
+                to_remove = get_deepest(peer1, peer2, heads, ancestry) if DEEPEST else peer1
+                new_head, tails = remove_node(to_remove, heads, ancestry)
+                blacklist.append(to_remove)
                 if len(blacklist) > 10:
                     blacklist.pop(0)
                 if new_head:

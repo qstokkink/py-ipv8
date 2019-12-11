@@ -13,6 +13,7 @@ from ipv8.configuration import get_default_configuration
 
 WILD_PEERS = 55
 SYBIL_PEERS = int(sys.argv[1], 10)
+EXPERIMENT_SYBILS = [49]*20 #[49, 59, 69, 79, 89, 99] * 20
 
 
 configuration = get_default_configuration()
@@ -92,7 +93,7 @@ def start_experiment(honest_community, sybil_community, sybil_count):
                                          honest_community.RTTs[peer][nonce])
 
     start_time = time.time()
-    psot = create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=60.0)
+    psot = create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=5*60.0)
     print "Experiment concluded, processing!"
 
     outfile = str(sybil_count) + ".msr"
@@ -119,7 +120,7 @@ def start_experiment(honest_community, sybil_community, sybil_count):
 
 
 def start_experiments(honest_community, sybil_community):
-    for sybil_count in ([49]*20): #[49, 59, 69, 79, 89, 99]:
+    for sybil_count in EXPERIMENT_SYBILS:
         start_experiment(honest_community, sybil_community, sybil_count)
     reactor.callFromThread(reactor.stop)
 
