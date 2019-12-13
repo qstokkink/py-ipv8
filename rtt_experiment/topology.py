@@ -142,12 +142,18 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
     output = []
 
     experiment_end_time = time.time() + experiment_time
+    experiment_head_timeout = time.time() + 30.0
 
-    while len(heads) < HEAD_COUNT and time.time() < experiment_end_time:
+    print "Gathering heads"
+    while len(heads) < HEAD_COUNT and time.time() < experiment_head_timeout:
         peer = bootstrap_func()
         if is_distinct(peer, heads):
             heads.add(peer)
             tails[peer] = None
+            print "Got", len(heads), "heads"
+    if time.time() >= experiment_head_timeout:
+        raise RuntimeError("Took too long to construct heads!")
+    print "Finished heads"
 
     output.append((time.time(), list(heads)))
 
@@ -169,8 +175,9 @@ def create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_
                 if peer not in blacklist and peer not in heads and peer not in ancestry.values():
                     ancestry[tail] = peer
                     new_tails[peer] = tail
-                    pending_checks.add((tail, peer))
-                elif not DEFER_CLASSIFIER:
+                    if not DEFER_CLASSIFIER:
+                        pending_checks.add((tail, peer))
+                else:
                     new_tails[tail] = tails[tail]
             tails = new_tails
         else:

@@ -11,9 +11,11 @@ from ipv8_service import IPv8
 from ipv8.configuration import get_default_configuration
 
 
-WILD_PEERS = 55
+TOTAL_POPULATION = 100
+WILD_PEERS = 20
 SYBIL_PEERS = int(sys.argv[1], 10)
-EXPERIMENT_SYBILS = [49]*20 #[49, 59, 69, 79, 89, 99] * 20
+EXPERIMENT_SYBILS = [99]*11 #[49, 59, 69, 79, 89, 99] * 20
+EXPERIMENT_TIME = 10*60.0
 
 
 configuration = get_default_configuration()
@@ -76,24 +78,34 @@ ipv8 = IPv8(configuration, extra_communities={
 
 
 def start_experiment(honest_community, sybil_community, sybil_count):
-    honest_count = 100 - sybil_count
+    honest_count = TOTAL_POPULATION - sybil_count
 
-    poolA = set(random.sample(honest_community.get_peers(), honest_count) if honest_count else [])
-    poolB = set(random.sample(sybil_community.get_peers(), sybil_count) if sybil_count else [])
+    completed = False
+    while not completed:
+        poolA = set(random.sample(honest_community.get_peers(), honest_count) if honest_count else [])
+        poolB = set(random.sample(sybil_community.get_peers(), sybil_count) if sybil_count else [])
 
-    poolAB = list(poolA | poolB)
-    poolA = list(poolA)
-    poolB = list(poolB)
+        poolAB = list(poolA | poolB)
+        poolA = list(poolA)
+        poolB = list(poolB)
 
-    bootstrap_func = lambda: random.choice(poolAB)
-    walk_func = lambda from_peer: random.choice(poolB if from_peer in poolB else poolAB)
-    ping_func = lambda peer: (sybil_community if peer in poolB else honest_community).send_ping(peer, True)
-    get_ping_func = lambda peer, nonce: (sybil_community.RTTs[peer][nonce]
-                                         if sybil_community.RTTs.get(peer, {}).get(nonce, None) is not None else
-                                         honest_community.RTTs[peer][nonce])
+        print "Starting experiment with sybil count:", sybil_count, " honest count:", honest_count
+        print "Pool AB:", len(poolAB), "A:", len(poolA), "B:", len(poolB)
 
-    start_time = time.time()
-    psot = create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5, experiment_time=5*60.0)
+        bootstrap_func = lambda: random.choice(poolAB)
+        walk_func = lambda from_peer: random.choice(poolB if from_peer in poolB else poolAB)
+        ping_func = lambda peer: (sybil_community if peer in poolB else honest_community).send_ping(peer, True)
+        get_ping_func = lambda peer, nonce: (sybil_community.RTTs[peer][nonce]
+                                             if sybil_community.RTTs.get(peer, {}).get(nonce, None) is not None else
+                                             honest_community.RTTs[peer][nonce])
+
+        start_time = time.time()
+        try:
+            psot = create_topology(bootstrap_func, walk_func, ping_func, get_ping_func, update_rate=0.5,
+                                   experiment_time=EXPERIMENT_TIME)
+            completed = True
+        except RuntimeError:
+            print "Couldn't find available head, retrying."
     print "Experiment concluded, processing!"
 
     outfile = str(sybil_count) + ".msr"
