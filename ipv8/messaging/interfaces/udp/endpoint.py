@@ -62,7 +62,7 @@ class UDPEndpoint(Endpoint, asyncio.DatagramProtocol):
                 self._transport = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 self._transport.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 870400)
                 self._transport.bind((self._ip, self._port))
-                self._transport.setblocking(False)
+                self._transport.setblocking(True)
                 self._port = self._transport.getsockname()[1]
 
                 self._transport, _ = await loop.create_datagram_endpoint(lambda: self,
