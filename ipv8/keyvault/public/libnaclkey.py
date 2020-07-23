@@ -1,7 +1,11 @@
-import libnacl
-import libnacl.encode
-import libnacl.public
-import libnacl.sign
+from binascii import hexlify
+
+from nacl.bindings.crypto_box import crypto_box_SECRETKEYBYTES
+from nacl.bindings.crypto_sign import crypto_sign_BYTES, crypto_sign_SEEDBYTES
+from nacl.encoding import HexEncoder
+from nacl.public import PublicKey as PubKey
+from nacl.signing import VerifyKey
+
 
 from ...keyvault.keys import PublicKey
 
@@ -22,13 +26,13 @@ class LibNaCLPK(PublicKey):
         """
         # Load the key, if specified
         if binarykey:
-            pk, vk = (binarykey[:libnacl.crypto_box_SECRETKEYBYTES],
-                      binarykey[libnacl.crypto_box_SECRETKEYBYTES: libnacl.crypto_box_SECRETKEYBYTES
-                                + libnacl.crypto_sign_SEEDBYTES])
-            hex_vk = libnacl.encode.hex_encode(vk)
+            pk, vk = (binarykey[:crypto_box_SECRETKEYBYTES],
+                      binarykey[crypto_box_SECRETKEYBYTES: crypto_box_SECRETKEYBYTES
+                                + crypto_sign_SEEDBYTES])
+            hex_vk = hexlify(vk)
         # Construct the public key and verifier objects
-        self.key = libnacl.public.PublicKey(pk)
-        self.veri = libnacl.sign.Verifier(hex_vk)
+        self.key = PubKey(pk)
+        self.veri = VerifyKey(hex_vk, encoder=HexEncoder())
 
     def verify(self, signature, msg):
         """
@@ -43,10 +47,10 @@ class LibNaCLPK(PublicKey):
         """
         Get the string representation of this key.
         """
-        return b"LibNaCLPK:" + self.key.pk + self.veri.vk
+        return b"LibNaCLPK:" + bytes(self.key) + bytes(self.veri)
 
     def get_signature_length(self):
         """
         Returns the length, in bytes, of each signature made using EC.
         """
-        return libnacl.crypto_sign_BYTES
+        return crypto_sign_BYTES

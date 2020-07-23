@@ -387,7 +387,7 @@ class HiddenTunnelCommunity(TunnelCommunity):
         shared_secret = self.crypto.verify_and_generate_shared_secret(cache.hop.dh_secret,
                                                                       payload.key,
                                                                       payload.auth,
-                                                                      cache.hop.public_key.key.pk)
+                                                                      bytes(cache.hop.public_key.key))
         session_keys = self.crypto.generate_session_keys(shared_secret)
 
         _, decoded = decode(self.crypto.decrypt_str(payload.rp_info_enc,

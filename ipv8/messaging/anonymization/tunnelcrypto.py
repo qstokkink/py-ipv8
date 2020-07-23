@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
 
 import libnacl
+from nacl.bindings.crypto_box import crypto_box_beforenm
 
 from ...keyvault.crypto import ECCrypto, LibNaCLPK
 
@@ -25,7 +26,7 @@ class TunnelCrypto(ECCrypto):
 
     def generate_diffie_secret(self):
         tmp_key = self.generate_key("curve25519")
-        X = tmp_key.key.pk
+        X = bytes(tmp_key.key.pk)
 
         return tmp_key, X
 
@@ -34,15 +35,15 @@ class TunnelCrypto(ECCrypto):
             key = self.key
 
         tmp_key = self.generate_key("curve25519")
-        y = tmp_key.key.sk
-        Y = tmp_key.key.pk
-        shared_secret = libnacl.crypto_box_beforenm(dh_received, y) + libnacl.crypto_box_beforenm(dh_received, key.key.sk)
+        y = bytes(tmp_key.key.sk)
+        Y = bytes(tmp_key.key.pk)
+        shared_secret = crypto_box_beforenm(dh_received, y) + crypto_box_beforenm(dh_received, bytes(key.key.sk))
 
         AUTH = libnacl.crypto_auth(Y, shared_secret[:32])
         return shared_secret, Y, AUTH
 
     def verify_and_generate_shared_secret(self, dh_secret, dh_received, auth, B):
-        shared_secret = libnacl.crypto_box_beforenm(dh_received, dh_secret.key.sk) + libnacl.crypto_box_beforenm(B, dh_secret.key.sk)
+        shared_secret = crypto_box_beforenm(dh_received, bytes(dh_secret.key.sk)) + crypto_box_beforenm(bytes(B), bytes(dh_secret.key.sk))
         libnacl.crypto_auth_verify(auth, dh_received, shared_secret[:32])
 
         return shared_secret

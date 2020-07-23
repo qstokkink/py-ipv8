@@ -520,7 +520,7 @@ class TunnelCommunity(Community):
 
         try:
             shared_secret = self.crypto.verify_and_generate_shared_secret(hop.dh_secret, payload.key,
-                                                                          payload.auth, hop.public_key.key.pk)
+                                                                          payload.auth, hop.public_key.key)
             hop.session_keys = self.crypto.generate_session_keys(shared_secret)
 
         except CryptoException:
