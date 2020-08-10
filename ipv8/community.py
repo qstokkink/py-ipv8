@@ -17,8 +17,9 @@ from traceback import format_exception
 
 from .lazy_community import EZPackOverlay, lazy_wrapper, lazy_wrapper_unsigned
 from .messaging.anonymization.endpoint import TunnelEndpoint
-from .messaging.payload import (IntroductionRequestPayload, IntroductionResponsePayload, PuncturePayload,
-                                PunctureRequestPayload)
+from .messaging.payload import (IntroductionRequestPayload, IntroductionResponsePayload,
+                                NewIntroductionRequestPayload, NewIntroductionResponsePayload,
+                                PuncturePayload, PunctureRequestPayload)
 from .messaging.payload_headers import BinMemberAuthenticationPayload, GlobalTimeDistributionPayload
 
 _DEFAULT_ADDRESSES = [
@@ -93,8 +94,10 @@ class Community(EZPackOverlay):
         self.decode_map = {
             chr(250): self.on_puncture_request,
             chr(249): self.on_puncture,
-            chr(246): self.on_introduction_request,
-            chr(245): self.on_introduction_response,
+            chr(246): self.on_old_introduction_request,
+            chr(245): self.on_old_introduction_response,
+            chr(234): self.on_new_introduction_request,
+            chr(233): self.on_new_introduction_response,
 
             chr(255): self.on_deprecated_message,
             chr(254): self.on_deprecated_message,
@@ -268,6 +271,13 @@ class Community(EZPackOverlay):
         pass
 
     @lazy_wrapper(GlobalTimeDistributionPayload, IntroductionRequestPayload)
+    def on_old_introduction_request(self, peer, dist, payload):
+        self.on_introduction_request(peer, dist, payload)
+
+    @lazy_wrapper(GlobalTimeDistributionPayload, NewIntroductionRequestPayload)
+    def on_new_introduction_request(self, peer, dist, payload):
+        self.on_introduction_request(peer, dist, payload)
+
     def on_introduction_request(self, peer, dist, payload):
         if self.max_peers >= 0 and len(self.get_peers()) > self.max_peers:
             self.logger.info("Dropping introduction request from (%s, %d): too many peers!",
@@ -283,6 +293,13 @@ class Community(EZPackOverlay):
         self.introduction_request_callback(peer, dist, payload)
 
     @lazy_wrapper(GlobalTimeDistributionPayload, IntroductionResponsePayload)
+    def on_old_introduction_response(self, peer, dist, payload):
+        self.on_introduction_response( peer, dist, payload)
+
+    @lazy_wrapper(GlobalTimeDistributionPayload, NewIntroductionResponsePayload)
+    def on_old_introduction_response(self, peer, dist, payload):
+        self.on_introduction_response(peer, dist, payload)
+
     def on_introduction_response(self, peer, dist, payload):
         if not self.address_is_lan(payload.destination_address[0]):
             self.my_estimated_wan = payload.destination_address

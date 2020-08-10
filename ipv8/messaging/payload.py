@@ -97,6 +97,36 @@ class IntroductionRequestPayload(Payload):
         return IntroductionRequestPayload(*args)
 
 
+class NewIntroductionRequestPayload(Payload):
+
+    format_list = ['varlenH', 'H', 'varlenH', 'H', 'varlenH', 'H', 'H', 'raw']
+
+    def __init__(self, destination_address, source_lan_address, source_wan_address, identifier, extra_bytes):
+        super(NewIntroductionRequestPayload, self).__init__()
+        self.destination_address = destination_address
+        self.source_lan_address = source_lan_address
+        self.source_wan_address = source_wan_address
+        self.identifier = identifier % 65536
+        self.extra_bytes = extra_bytes
+
+    def to_pack_list(self):
+        return [('varlenH', self.destination_address[0].encode()), ('H', self.destination_address[1]),
+                ('varlenH', self.source_lan_address[0].encode()), ('H', self.source_lan_address[1]),
+                ('varlenH', self.source_wan_address[0].encode()), ('H', self.source_wan_address[1]),
+                ('H', self.identifier),
+                ('raw', self.extra_bytes)]
+
+    @classmethod
+    def from_unpack_list(cls, destination_address, destination_port,
+                         source_lan_address, source_lan_port,
+                         source_wan_address, source_wan_port,
+                         identifier, extra_bytes):
+        return NewIntroductionRequestPayload((destination_address.decode(), destination_port),
+                                             (source_lan_address.decode(), source_lan_port),
+                                             (source_wan_address.decode(), source_wan_port),
+                                             identifier, extra_bytes)
+
+
 class IntroductionResponsePayload(Payload):
 
     format_list = ['4SH', '4SH', '4SH', '4SH', '4SH', 'bits', 'H', 'raw']
@@ -179,6 +209,45 @@ class IntroductionResponsePayload(Payload):
                 extra_bytes]
 
         return IntroductionResponsePayload(*args)
+
+
+class NewIntroductionResponsePayload(Payload):
+
+    format_list = ['varlenH', 'H', 'varlenH', 'H', 'varlenH', 'H', 'varlenH', 'H', 'varlenH', 'H', 'H', 'raw']
+
+    def __init__(self, destination_address, source_lan_address, source_wan_address, lan_introduction_address,
+                 wan_introduction_address, identifier, extra_bytes):
+        super(NewIntroductionResponsePayload, self).__init__()
+        self.destination_address = destination_address
+        self.source_lan_address = source_lan_address
+        self.source_wan_address = source_wan_address
+        self.lan_introduction_address = lan_introduction_address
+        self.wan_introduction_address = wan_introduction_address
+        self.identifier = identifier % 65536
+        self.extra_bytes = extra_bytes
+
+    def to_pack_list(self):
+        return [('varlenH', self.destination_address[0].encode()), ('H', self.destination_address[1]),
+                ('varlenH', self.source_lan_address[0].encode()), ('H', self.source_lan_address[1]),
+                ('varlenH', self.source_wan_address[0].encode()), ('H', self.source_wan_address[1]),
+                ('varlenH', self.lan_introduction_address[0].encode()), ('H', self.lan_introduction_address[1]),
+                ('varlenH', self.wan_introduction_address[0].encode()), ('H', self.wan_introduction_address[1]),
+                ('H', self.identifier),
+                ('raw', self.extra_bytes)]
+
+    @classmethod
+    def from_unpack_list(cls, destination_address, destination_port,
+                         source_lan_address, source_lan_port,
+                         source_wan_address, source_wan_port,
+                         introduction_lan_address, introduction_lan_port,
+                         introduction_wan_address, introduction_wan_port,
+                         identifier, extra_bytes):
+        return NewIntroductionResponsePayload((destination_address.decode(), destination_port),
+                                              (source_lan_address.decode(), source_lan_port),
+                                              (source_wan_address.decode(), source_wan_port),
+                                              (introduction_lan_address.decode(), introduction_lan_port),
+                                              (introduction_wan_address.decode(), introduction_wan_port),
+                                              identifier, extra_bytes)
 
 
 class PunctureRequestPayload(Payload):
