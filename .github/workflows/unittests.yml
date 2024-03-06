@@ -34,7 +34,7 @@ jobs:
           path: libsodium.dll
           key: cache_libsodium_dll
   macos:
-    runs-on: macos-12
+    runs-on: macos-latest
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +44,4 @@ jobs:
           cache: 'pip'
       - run: python -m pip install -r requirements.txt
       - name: Run unit tests
-        run: |
-          pip install pytest pytest-xdist
-          python run_all_tests.py -a
+        run: python run_all_tests.py -a
