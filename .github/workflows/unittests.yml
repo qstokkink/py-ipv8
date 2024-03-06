@@ -34,7 +34,7 @@ jobs:
           path: libsodium.dll
           key: cache_libsodium_dll
   macos:
-    runs-on: macos-14
+    runs-on: macos-11
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
