@@ -14,6 +14,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Awaitable, Callable, Coroutine, Generic, Type, TypeVar, cast
 
 from ..lazy_community import PacketDecodingError, lazy_wrapper, lazy_wrapper_unsigned
+from ..messaging.interfaces.lan_addresses.interfaces import get_providers
 from ..messaging.serialization import PackError
 from ..overlay import Overlay
 from ..peer import Peer
@@ -255,6 +256,7 @@ class TestBase(TestCaseClass, Generic[OT]):
         """
         self.loop.set_debug(True)
         self.loop.set_exception_handler(self._cb_exception)
+        get_providers().clear()
         super().setUp()
         TestBase.__lockup_timestamp__ = time.time()
 
@@ -306,6 +308,7 @@ class TestBase(TestCaseClass, Generic[OT]):
                 import traceback
                 print("The test-suite locked up! Force quitting! Thread dump:", file=sys.stderr)  # noqa: T201
                 for tid, stack in sys._current_frames().items():  # noqa: SLF001
+                    print("LEAK", tid, stack)
                     if tid != threading.current_thread().ident:
                         print("THREAD#%d" % tid, file=sys.stderr)  # noqa: T201
                         for line in traceback.format_list(traceback.extract_stack(stack)):
@@ -322,6 +325,8 @@ class TestBase(TestCaseClass, Generic[OT]):
 
                 # Our test suite catches the SIGINT signal, this allows it to print information before force exiting.
                 # If we were to hard exit here (through os._exit) we would lose this additional information.
+                sys.stdout.flush()
+                sys.stderr.flush()
                 import signal
                 os.kill(os.getpid(), signal.SIGINT)
                 # But sometimes it just flat out refuses to die (sys.exit will also not work in this case).
