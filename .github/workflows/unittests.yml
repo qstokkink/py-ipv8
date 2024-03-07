@@ -47,4 +47,4 @@ jobs:
         run: |
           pip install pytest pytest-xdist
           pytest -n auto ipv8
-          python run_all_tests.py -a
+          python run_all_tests.py -a -p 6
